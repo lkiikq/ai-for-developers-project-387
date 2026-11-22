@@ -16,7 +16,7 @@ const createBooking = (overrides = {}) =>
     .post('/api/bookings')
     .send({
       eventTypeId: 'type-1',
-      date: '2027-01-01',
+      date: firstWeekdayInWindow(),
       startTime: '10:00',
       guestName: 'Иван Иванов',
       guestEmail: 'ivan@example.com',
@@ -24,12 +24,13 @@ const createBooking = (overrides = {}) =>
     });
 
 // Прямая запись в хранилище — для дат вне окна бронирования
-// (вчерашние/начавшиеся), которые недоступны через API
+// (вчерашние/начавшиеся), которые недоступны через API.
+// Дата по умолчанию относительная: хардкод превратил бы тест в time-bomb.
 const seedBooking = (overrides) => {
   store.bookings.push({
     id: 'seed-booking',
     eventTypeId: 'seed-type',
-    date: '2027-01-01',
+    date: firstWeekdayInWindow(),
     startTime: '10:00',
     endTime: '10:30',
     guestName: 'Гость',
@@ -37,6 +38,16 @@ const seedBooking = (overrides) => {
     ...overrides,
   });
 };
+
+describe('фикстура seedBooking', () => {
+  test('дата по умолчанию попадает в окно бронирования, а не задана хардкодом', () => {
+    seedBooking({});
+
+    const { date } = store.bookings[0];
+    expect(date > today()).toBe(true);
+    expect(date <= addDays(today(), 14)).toBe(true);
+  });
+});
 
 describe('POST /api/bookings — успех', () => {
   test('201: в ответе createdAt — момент создания брони (date-time)', async () => {
