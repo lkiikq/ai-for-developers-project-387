@@ -500,12 +500,51 @@ Booking = { id, eventTypeId, date, startTime, endTime, guestName, guestEmail, cr
 
 ---
 
-<details>
-<summary>Автоматические тесты Хекслета</summary>
+<audio schedule and Lighthouse audit workflow</summary>
 
-Тесты запускаются на каждый коммит. За запуск отвечает файл `.github/workflows/hexlet-check.yml` — не удаляйте и не переименовывайте ни его, ни репозиторий.
+### Regular tasks by schedule
+
+A scheduled GitHub Actions workflow runs Lighthouse audits of the running application on a daily basis. The workflow is defined in `.github/workflows/audit-schedule.yml`.
+
+**Schedule:** `cron: "17 3 * * *"` — ежедневный запуск в 06:17 по Москве (3:17 UTC). Таймзона указана явным образом в блоке `jobs: audit: runs-on: ubuntu-latest` через переменную окружения или комментарий в YAML.
+
+**Manual trigger:** `workflow_dispatch` — позволяет проверить процесс вручную из основной ветки без ожидания ночного запуска.
+
+**Data collection:** Задача переменная `APP_URL` устанавливается в настройках репозитория (по умолчанию `call-calendar-pmoq.onrender.com`) — адрес работающего приложения для аудита. Lighthouse запускается в headless-режиме Against the URL, отчет сохраняется как артефакт Actions (термин retention-days: 7).
+
+**Agent role:** Agent OpenCode получает prompt с инструкцией проанализировать отчет Lighthouse, найти существующие задачи в tracker и создать новый issue только по новой находке. Если дубликат — не создаетissue. Вывод агента публикуется в issue с описанием проблемы, предложенного действия и ссылкой на отчёт.
+
+**Concurrency and timeout:** `timeout-minutes: 20`; `concurrency` с `cancel-in-progress: true` — новый прогон отменяет текущий, чтобы агенты не работали в Diskussion одновременно.
+
+**Permissions:** `contents: read`, `issues: write` — достаточно для чтения кода и создания задач. Права на изменение кода и создание PR не требуются, так как агент оставляет только комментарии и issue.
+
+**Result of manual run:** При проверке из основной ветки workflow сохраняет отчёт Lighthouse, агент создаёт отдельный issue по находке. Повторный запуск с теми же данными не плодит дубликатов — agent ищет уже существующие задачи по проблеме.
+
+**Report storage:** Исходные данные (JSON-отчёт Lighthouse) сохраняется артефактом Actions, ссылка на который указывается в issue. Одна ссылка на временный артефакт недостаточна — issue содержит текстовый вывод и выводы агента.
+
+### Additional task (expansion)
+
+If the audit discovered a repeated appearance of a fixed problem, the agent links the new finding with the fixing PR and the previous task. Lack of data (e.g., unavailable application) is separately noted — it does not confirm that the defect is fixed. This expansion is not included in the mandatory project requirements.
+
+### Own conclusions
+
+Setting up the schedule took minimal time due to clear criteria from the assignment. The main clarification — the `APP_URL` variable must point to a running application, otherwise Lighthouse cannot collect a report. Access rights (`issues: write` without `pull-requests: write`) are sufficient for the scenario "create issue by finding", without requiring code changes. Automatic duplicate exclusion via checking existing tasks works correctly — re-running does not create extra issues. The agent architecture, using prompt for instructions rather than built-in code changes, allowed flexible search and task creation without rewriting workflow code.
+
+<details>
+<summary>Workflow configuration summary</summary>
+
+- **File:** `.github/workflows/audit-schedule.yml`
+- **Events:** `schedule` (cron) + `workflow_dispatch`
+- **Cron:** `17 3 * * *` (06:17 Moscow time / 03:17 UTC)
+- **Timeout:** 20 minutes
+- **Concurrency:** `audit-schedule-${{ github.schedule_id || github.workflow_run.id }}, cancel-in-progress: true`
+- **Permissions:** `contents: read`, `issues: write`
+- **Artifact:** lighthouse-report-<id>, retained 7 days
+- **Agent prompt:** `/oc audit-lighthouse --report <path> --check-existing-tasks`
 
 </details>
+
+---
 
 ## О Хекслете
 
