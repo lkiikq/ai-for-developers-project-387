@@ -44,7 +44,7 @@ jobs:
             core.setOutput('hasTicketRef', hasTicketRef)
             core.setOutput('hasCloses', hasCloses)
 
-      - name: Run OpenCode review
+      - name: Run OpenCode review (budget-limited)
         if: steps.Check_hasSpecRef.outputs.hasSpecReq == 'true'
         uses: anomalyco/opencode/github@latest
         env:
@@ -52,29 +52,21 @@ jobs:
         with:
           model: opencode/mimo-v2.6-flash-free
           share: "false"
-          # Этот вызов читает изменения PR, спецификацию из issue и оставляет
-          # авторевью без изменения кода. Реальные правки делает человек.
-          # Команду /oc review оформим вручную после слияния.
-          # Инструкция: прочитать изменения, сравнить со spec (#9), оставить
-          # замечания по консистентности, покрытию тестами и граничным случаям.
-          # Неправить код — только комментарии.
-
-          # Максимальное время 15 минут на обзор
+          # Авторевью: читает изменения PR, сравнивает со spec Issue #9,
+          # оставляет замечания по консистентности, покрытию тестами и граничным случаям.
+          # Не меняет код — только комментарии.
+          # Тайм-аут 15 минут — после истечения использованоBudget.
           timeout-minutes: 15
-
-          # Команду можно триггерить вручную из PR комментариев:
-          # /oc review --resume <run-id>
-          # но здесь мы просто оставляем статический обзор.
 
           with: |
             /oc review --brief --source PR #${{ github.event.pull_request.number }} --specIssue 9 --checks "test,lint,contract" --timeout 15m
 
-      - name: Enforce timeout and cancel stale reviews
+      - name: Enforce budget spent flag
         if: always()
         run: |
-          echo "Auto review completed or timed out for PR #${{ github.event.pull_request.number }}"
+          echo "Auto review step executed for PR #${{ github.event.pull_request.number }}"
 
-      - name: Cancel irrelevant runs (forks, bots)
+      - name: Cancel stale/irrelevant runs
         if: failure()
         run: |
-          echo "Review skipped: fork, bot, or missing specification reference"
+          echo "Review skipped or completed: fork, bot, or missing spec reference"
