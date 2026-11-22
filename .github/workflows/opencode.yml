@@ -21,8 +21,8 @@ jobs:
     if: |
       github.event.comment.user.type != 'Bot' &&
       (
-        contains(github.event.comment.body, '/oc') ||
-        contains(github.event.comment.body, '/opencode')
+        contains(format('\n{0}\n', github.event.comment.body), '\n/oc') ||
+        contains(format('\n{0}\n', github.event.comment.body), '\n/opencode')
       ) &&
       (
         github.event.comment.author_association == 'OWNER' ||
