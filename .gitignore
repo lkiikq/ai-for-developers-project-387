@@ -5,3 +5,5 @@ mise.local.toml
 # Артефакты Playwright (тикет #12)
 test-results/
 playwright-report/
+# Отчёт аудита Lighthouse: создаётся воркфлоу, в git не попадает
+lighthouse-report.json

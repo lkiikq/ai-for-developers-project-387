@@ -1,80 +1,104 @@
 name: Audit Schedule
 
-# Расписание и ручной запуск
-# По умолчанию время в UTC, таймзона Europe/Moscow (Москва, UTC+3)
-# 17 3 * * * — ежедневный запуск в 06:17 по Москве (3:17 UTC)
-# workflow_dispatch позволяет проверить процесс вручную
+# Аудит состояния приложения по расписанию: Lighthouse снимает отчёт о
+# работающем приложении, агент ищет новые находки и заводит issue только
+# по тем проблемам, которых ещё нет в трекере.
 on:
   schedule:
-    - cron: "17 3 * * *"
-    # timezone: Europe/Moscow  # можно указать явную таймзону
+    - cron: "17 3 * * *" # 03:17 UTC = 06:17 по Москве
   workflow_dispatch:
 
-# Права: чтение контента, issues для создания задачи
 permissions:
+  id-token: write # OIDC-токен обменивается на токен GitHub App (issue по находке)
   contents: read
-  issues: write
+  issues: write # gh: проверка открытых issue и создание новой
+
+# Адрес работающего приложения: переменная репозитория APP_URL,
+# по умолчанию — прод первого проекта из README.
+env:
+  APP_URL: ${{ vars.APP_URL || 'https://call-calendar-pmoq.onrender.com' }}
 
 jobs:
   audit:
     runs-on: ubuntu-latest
-    # Ограничение параллельных запусков: только один задач одновременно
-    concurrency:
-      group: audit-schedule-${{ github.schedule_id || github.workflow_run.id }}
-      cancel-in-progress: true
-    # Тайм-аут 20 минут на весь прогон
     timeout-minutes: 20
+    # Один аудит одновременно; новый прогон отменяет предыдущий.
+    concurrency:
+      group: audit-schedule
+      cancel-in-progress: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 1
+          persist-credentials: false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
+      # Free-инстанс Render засыпает: будим приложение и ждём ответа health.
+      - name: Warm up application
+        run: curl -sf --retry 5 --retry-delay 10 --retry-all-errors "$APP_URL/api/health" || true
 
-      - name: Install dependencies
+      # В headless-режиме запрос прав никто не подтверждает — прогон зависает
+      # до тайм-аута (тикет #6). Внешние пути разрешаем целиком (раннер
+      # одноразовый), зацикливание блокируем.
+      - name: Headless permissions
+        shell: bash
         run: |
-          cd client
-          npm install
+          mkdir -p "$HOME/.config/opencode"
+          cat > "$HOME/.config/opencode/opencode.json" <<'EOF'
+          {
+            "permission": {
+              "external_directory": { "*": "allow" },
+              "doom_loop": "deny"
+            }
+          }
+          EOF
 
       - name: Run Lighthouse audit
-        # Запуск Lighthouse в headless-режиме
-        # Результат сохраняется как артефакт
         run: |
-          cd client
-          # Устанавливаем Lighthouse globally или через npx
-          npx --yes lighthouse http://${APP_URL:-localhost}:3000 --output json --output-path lighthouse-report.json --preset lighthouse:ci --chrome-flags="--headless --no-sandbox" || true
+          npx --yes lighthouse "$APP_URL" \
+            --output json \
+            --output-path lighthouse-report.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --max-wait-for-load=60000 \
+            --chrome-flags="--headless --no-sandbox"
 
-      - name: Upload Lighthouse report as artifact
+      - name: Upload Lighthouse report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lighthouse-report-${{ github.schedule_id || github.workflow_run.id }}
-          path: client/lighthouse-report.json
+          name: lighthouse-report-${{ github.run_id }}
+          path: lighthouse-report.json
+          if-no-files-found: warn
           retention-days: 7
 
-      - name: Run OpenCode agent for audit analysis
+      - name: Run OpenCode audit analysis
+        if: hashFiles('lighthouse-report.json') != ''
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: opencode/mimo-v2.6-flash-free
           share: "false"
-          # Агент анализирует отчёт Lighthouse и ищет проблемы:
-          # - медленная загрузка страницы
-          # - ресурсы без кэша
-          # - доступность
-          # - SEO проблемы
-          # и создает issue только по новой находке
-          # Инструкция передаётся в prompt
-          with: |
-            /oc audit-lighthouse --report client/lighthouse-report.json --check-existing-tasks
+          prompt: |
+            Проанализируй отчёт Lighthouse `lighthouse-report.json`
+            для приложения ${{ env.APP_URL }}.
 
-      - name: Enforce timeout and summarize
-        if: always()
-        run: |
-          echo "Audit schedule completed"
-          echo "Report artifact retained for 7 days"
+            1. Найди проблемы: производительность, доступность, best practices, SEO.
+               Смотри на категории и аудиты с низким score, а не на мелкие предупреждения.
+            2. Перед созданием задачи проверь, нет ли уже такой:
+               `gh issue list --state all --search "lighthouse:<audit-id>" --json number,title`.
+               Идентификатор аудита — `audits[].id` из отчёта (например, `color-contrast`).
+               Ищи по всем задачам, открытым и закрытым: повтор уже исправленной
+               проблемы тоже не должен заводить вторую.
+            3. По каждой новой находке создай отдельный issue:
+               `gh issue create --title "..." --body "..." --label needs-triage`.
+               В теле: что найдено, значение метрики или score, ожидаемое поведение
+               и ссылка на прогон
+               ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
+               Последней строкой тела добавь скрытый маркер `<!-- lighthouse:<audit-id> -->` —
+               по нему следующий запуск найдёт задачу и не создаст дубликат.
+            4. Если новых находок нет, ничего не создавай и напиши об этом в ответе.
+
+            Файлы репозитория не меняй и не коммить: отчёт уже сохранён артефактом.
+            Права и токены не проверяй — итог просто напиши в ответе.
