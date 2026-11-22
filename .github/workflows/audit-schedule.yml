@@ -35,6 +35,22 @@ jobs:
       - name: Warm up application
         run: curl -sf --retry 5 --retry-delay 10 --retry-all-errors "$APP_URL/api/health" || true
 
+      # В headless-режиме запрос прав никто не подтверждает — прогон зависает
+      # до тайм-аута (тикет #6). Внешние пути разрешаем целиком (раннер
+      # одноразовый), зацикливание блокируем.
+      - name: Headless permissions
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/opencode"
+          cat > "$HOME/.config/opencode/opencode.json" <<'EOF'
+          {
+            "permission": {
+              "external_directory": { "*": "allow" },
+              "doom_loop": "deny"
+            }
+          }
+          EOF
+
       - name: Run Lighthouse audit
         run: |
           npx --yes lighthouse "$APP_URL" \
