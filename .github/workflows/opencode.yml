@@ -1,0 +1,64 @@
+# Агент OpenCode в GitHub Actions: вызов по команде из комментария
+# к issue или pull request. Описание — раздел «Агент OpenCode в
+# GitHub Actions» в README.md.
+name: opencode
+
+# Оба события — только создание комментария: правка комментария
+# повторный вызов не запускает (types: [created]).
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  opencode:
+    # Фильтр до работы агента: команда в тексте + доверенный автор.
+    # Комментарии ботов игнорируются — агент не отвечает на свои
+    # собственные сообщения.
+    if: |
+      github.event.comment.user.type != 'Bot' &&
+      (
+        contains(github.event.comment.body, '/oc') ||
+        contains(github.event.comment.body, '/opencode')
+      ) &&
+      (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    # Задание с агентом не виснет бесконечно
+    timeout-minutes: 20
+    # Параллельные запуски по одному issue/PR: новый прогон отменяет
+    # текущий, чтобы агенты не отвечали в обсуждении одновременно.
+    concurrency:
+      group: opencode-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: true
+    # Стандартная авторизация OpenCode: чтение репозитория +
+    # OIDC-токен, который обменивается на токен GitHub App.
+    # Права на запись даёт сам App, GITHUB_TOKEN в checkout не сохраняется.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Скиллы (.agents/skills/), настройки трекера (docs/agents/) и
+      # правила (AGENTS.md) приезжают с checkout — отдельная установка
+      # на раннере не нужна.
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@latest
+        env:
+          # Ключ модели — только из Secrets, в репозиторий не попадает
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/mimo-v2.6-flash-free
+          # Публикация сессий агента выключена: решение зафиксировано
+          # в README.md
+          share: "false"
+          # mentions не задаём — работают команды по умолчанию /opencode и /oc

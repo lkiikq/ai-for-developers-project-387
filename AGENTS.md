@@ -9,8 +9,11 @@
 - `mise run lint` / `mise run test` / `mise run build` — точечные проверки
 - `mise daemons start|stop|ls` — фоновые dev-серверы (бэкенд :3000, фронтенд :5173)
 - npm-команды пакетов — таблица «Команды для разработки» в README
+- `.github/workflows/opencode.yml` — агент OpenCode в GitHub Actions (вызов командой `/oc` из комментария к issue/PR; описание и настройки — README, раздел «Агент OpenCode в GitHub Actions»)
 
-Инструменты и их версии зафиксированы в `mise.toml` (node, hk, pitchfork). После клонирования: `mise install`, затем `hk install --mise` — поставит git-хуки из `hk.pkl`.
+Инструменты и их версии зафиксированы в `mise.toml` (node, hk, pitchfork, gh). После клонирования: `mise install`, затем `hk install --mise` — поставит git-хуки из `hk.pkl`.
+
+Скиллы проекта (`to-spec`, `to-tickets`, `implement-spec` и др.) лежат в `.agents/skills/` и подхватываются автоматически — в том числе на свежем раннере GitHub Actions после `checkout`.
 
 ## Правила, не читающиеся из кода
 
