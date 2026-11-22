@@ -71,6 +71,7 @@ describe('POST /api/bookings — успех', () => {
     expect(response.body).toEqual({
       id: expect.any(String),
       eventTypeId: eventType.id,
+      eventTypeName: 'Созвон',
       date,
       startTime: '10:00',
       endTime: '11:00',
@@ -79,6 +80,7 @@ describe('POST /api/bookings — успех', () => {
       createdAt: expect.any(String),
     });
     expect(store.bookings).toHaveLength(1);
+    expect(store.bookings[0]).not.toHaveProperty('eventTypeName');
   });
 
   test('тримминг: имя и email хранятся обрезанными', async () => {
@@ -392,6 +394,31 @@ describe('GET /api/bookings — предстоящие', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
+  });
+
+  test('GET возвращает eventTypeName = title типа (основной сценарий)', async () => {
+    const { body: eventType } = await createEventType('Созвон', 30);
+    await createBooking({
+      eventTypeId: eventType.id,
+      date: firstWeekdayInWindow(),
+      startTime: '10:00',
+    });
+
+    const response = await request(app).get('/api/bookings');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].eventTypeName).toBe('Созвон');
+  });
+
+  test('GET: тип брони отсутствует в хранилище → eventTypeName: null, 200 (негативный сценарий)', async () => {
+    seedBooking({ id: 'missing-type', eventTypeId: 'missing-type' });
+
+    const response = await request(app).get('/api/bookings');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].eventTypeName).toBeNull();
   });
 
   test('GET возвращает createdAt, сохранённый при создании брони', async () => {
