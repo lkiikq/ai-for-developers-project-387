@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.0 (2026-11-22)
+
+
+### Bug Fixes
+
+* headless-права для воркфлоу автоматизации ([#21](https://github.com/lkiikq/ai-for-developers-project-387/issues/21)) ([1a020ae](https://github.com/lkiikq/ai-for-developers-project-387/commit/1a020aef3456f94daa65d0cd217aff3a0ef6999f))
+* включить review-комментарии и убрать лишний триггер у агента ([#19](https://github.com/lkiikq/ai-for-developers-project-387/issues/19)) ([99670ca](https://github.com/lkiikq/ai-for-developers-project-387/commit/99670cadc25217dba255c8d3c182de08e464160c))
+* включить review-комментарии и убрать лишний триггер у агента ([#19](https://github.com/lkiikq/ai-for-developers-project-387/issues/19)) ([3758057](https://github.com/lkiikq/ai-for-developers-project-387/commit/375805733b6d80535a9fc3a245e4566a2edc8d54))
+* глобальный headless-конфиг прав для раннера агента ([#6](https://github.com/lkiikq/ai-for-developers-project-387/issues/6)) ([91c08f5](https://github.com/lkiikq/ai-for-developers-project-387/commit/91c08f5c13cf7e264fee194c7ae7dbfb6e1afcf5))
+* глобальный headless-конфиг прав для раннера агента ([#6](https://github.com/lkiikq/ai-for-developers-project-387/issues/6)) ([0fa5bab](https://github.com/lkiikq/ai-for-developers-project-387/commit/0fa5bab134bc5bc24604d0b5fce3f0b2411fb866))
+* починить автотриаж, авторевью и аудит по расписанию ([#21](https://github.com/lkiikq/ai-for-developers-project-387/issues/21)) ([e39455f](https://github.com/lkiikq/ai-for-developers-project-387/commit/e39455f7c24192c0d3dd537ee846d1c3ed52c6c8))
+* починить автотриаж, авторевью и аудит по расписанию ([#21](https://github.com/lkiikq/ai-for-developers-project-387/issues/21)) ([ed97734](https://github.com/lkiikq/ai-for-developers-project-387/commit/ed97734590d7ef097bcb1166ea1c577f8e4f727a))
+* права и промпты воркфлоу после авторевью ([#21](https://github.com/lkiikq/ai-for-developers-project-387/issues/21)) ([4314417](https://github.com/lkiikq/ai-for-developers-project-387/commit/431441757b8a6f3ceba2c965633f6588573db18d))
+* разрешить внешние пути для headless-прогонов агента и поднять тайм-аут ([#6](https://github.com/lkiikq/ai-for-developers-project-387/issues/6)) ([b66d1ae](https://github.com/lkiikq/ai-for-developers-project-387/commit/b66d1aeb0b65a914e69eec72b633e9241610d858))
+* разрешить внешние пути для headless-прогонов агента и поднять тайм-аут ([#6](https://github.com/lkiikq/ai-for-developers-project-387/issues/6)) ([553720e](https://github.com/lkiikq/ai-for-developers-project-387/commit/553720ec5f3d529980e4415a3f80f170c1eaac02))
+* устранить замечания авторевью по воркфлоу ([#21](https://github.com/lkiikq/ai-for-developers-project-387/issues/21)) ([d198054](https://github.com/lkiikq/ai-for-developers-project-387/commit/d198054009bcd061da1302f91ec2dc900e37e198))
+* уточнить промпт и бюджет авторевью ([#21](https://github.com/lkiikq/ai-for-developers-project-387/issues/21)) ([1ab516d](https://github.com/lkiikq/ai-for-developers-project-387/commit/1ab516d05dbd52f6f95f32368314ad810bccdc3b))
+
 ## 1.0.0 (2026-11-18)
 
 
