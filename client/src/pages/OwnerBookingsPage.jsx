@@ -56,6 +56,9 @@ const OwnerBookingsPage = () => {
             <li key={booking.id} className="card booking-card">
               <p className="booking-guest"><strong>{booking.guestName}</strong></p>
               <p className="booking-email">{booking.guestEmail}</p>
+              {booking.eventTypeName && (
+                <p className="booking-event-type">{booking.eventTypeName}</p>
+              )}
               <p className="muted">Слот: {booking.date}-{booking.startTime}</p>
               {booking.createdAt && (
                 <p className="muted">Создано: {formatCreatedAt(booking.createdAt)}</p>
