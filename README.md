@@ -277,6 +277,13 @@ cd client && npm run dev
 
 Установка App и ключ — единственные шаги, которые нельзя сделать из репозитория; остальное (воркфлоу, описание) готовится агентом и проверяется до мержа в основную ветку.
 
+### Другие воркфлоу автоматизации
+
+Тот же агент, тот же секрет `OPENCODE_API_KEY` и те же настройки из `docs/agents/`:
+
+- **Автотриаж** (`.github/workflows/opencode-triage.yml`) — событие `issues: [opened]`. Агент разбирает обращение и отвечает комментарием по шагам из `docs/agents/`, метка `needs-triage` ставится автоматически. Обращения от ботов и issue с `ready-for-agent` пропускаются. Событие не команда, поэтому промпт задан во входе `prompt`. Тайм-аут 15 минут, параллельные разборы одного issue отменяются.
+- **Авторевью** (`.github/workflows/opencode-review.yml`) — событие `pull_request: [opened, synchronize, reopened]`. Агент ревьюит изменения по скиллу `code-review` и оставляет замечания в обсуждении PR и на строках diff; код он не меняет. PR из fork и PR от ботов пропускаются. Тайм-аут 15 минут, новый коммит в PR отменяет устаревшее ревью.
+
 ## Сценарии использования
 
 Два типа пользователей (без регистрации и авторизации): **владелец** настраивает и наблюдает, **гость** бронирует.
@@ -500,47 +507,47 @@ Booking = { id, eventTypeId, date, startTime, endTime, guestName, guestEmail, cr
 
 ---
 
-<audio schedule and Lighthouse audit workflow</summary>
-
-### Regular tasks by schedule
-
-A scheduled GitHub Actions workflow runs Lighthouse audits of the running application on a daily basis. The workflow is defined in `.github/workflows/audit-schedule.yml`.
-
-**Schedule:** `cron: "17 3 * * *"` — ежедневный запуск в 06:17 по Москве (3:17 UTC). Таймзона указана явным образом в блоке `jobs: audit: runs-on: ubuntu-latest` через переменную окружения или комментарий в YAML.
-
-**Manual trigger:** `workflow_dispatch` — позволяет проверить процесс вручную из основной ветки без ожидания ночного запуска.
-
-**Data collection:** Задача переменная `APP_URL` устанавливается в настройках репозитория (по умолчанию `call-calendar-pmoq.onrender.com`) — адрес работающего приложения для аудита. Lighthouse запускается в headless-режиме Against the URL, отчет сохраняется как артефакт Actions (термин retention-days: 7).
-
-**Agent role:** Agent OpenCode получает prompt с инструкцией проанализировать отчет Lighthouse, найти существующие задачи в tracker и создать новый issue только по новой находке. Если дубликат — не создаетissue. Вывод агента публикуется в issue с описанием проблемы, предложенного действия и ссылкой на отчёт.
-
-**Concurrency and timeout:** `timeout-minutes: 20`; `concurrency` с `cancel-in-progress: true` — новый прогон отменяет текущий, чтобы агенты не работали в Diskussion одновременно.
-
-**Permissions:** `contents: read`, `issues: write` — достаточно для чтения кода и создания задач. Права на изменение кода и создание PR не требуются, так как агент оставляет только комментарии и issue.
-
-**Result of manual run:** При проверке из основной ветки workflow сохраняет отчёт Lighthouse, агент создаёт отдельный issue по находке. Повторный запуск с теми же данными не плодит дубликатов — agent ищет уже существующие задачи по проблеме.
-
-**Report storage:** Исходные данные (JSON-отчёт Lighthouse) сохраняется артефактом Actions, ссылка на который указывается в issue. Одна ссылка на временный артефакт недостаточна — issue содержит текстовый вывод и выводы агента.
-
-### Additional task (expansion)
-
-If the audit discovered a repeated appearance of a fixed problem, the agent links the new finding with the fixing PR and the previous task. Lack of data (e.g., unavailable application) is separately noted — it does not confirm that the defect is fixed. This expansion is not included in the mandatory project requirements.
-
-### Own conclusions
-
-Setting up the schedule took minimal time due to clear criteria from the assignment. The main clarification — the `APP_URL` variable must point to a running application, otherwise Lighthouse cannot collect a report. Access rights (`issues: write` without `pull-requests: write`) are sufficient for the scenario "create issue by finding", without requiring code changes. Automatic duplicate exclusion via checking existing tasks works correctly — re-running does not create extra issues. The agent architecture, using prompt for instructions rather than built-in code changes, allowed flexible search and task creation without rewriting workflow code.
-
 <details>
-<summary>Workflow configuration summary</summary>
+<summary>Регулярные проверки по расписанию</summary>
 
-- **File:** `.github/workflows/audit-schedule.yml`
-- **Events:** `schedule` (cron) + `workflow_dispatch`
-- **Cron:** `17 3 * * *` (06:17 Moscow time / 03:17 UTC)
-- **Timeout:** 20 minutes
-- **Concurrency:** `audit-schedule-${{ github.schedule_id || github.workflow_run.id }}, cancel-in-progress: true`
-- **Permissions:** `contents: read`, `issues: write`
-- **Artifact:** lighthouse-report-<id>, retained 7 days
-- **Agent prompt:** `/oc audit-lighthouse --report <path> --check-existing-tasks`
+### Аудит по расписанию
+
+Ежедневный воркфлоу `.github/workflows/audit-schedule.yml` проверяет работающее приложение и заводит задачи по новым находкам.
+
+**Расписание:** `cron: "17 3 * * *"` — 03:17 UTC, то есть 06:17 по Москве. Cron в GitHub Actions всегда в UTC, отдельной таймзоны в файле нет.
+
+**Ручной запуск:** `workflow_dispatch` — проверка из основной ветки без ожидания ночного запуска.
+
+**Откуда данные:** переменная репозитория `APP_URL` (Settings → Secrets and variables → Actions → Variables), по умолчанию — прод первого проекта `https://call-calendar-pmoq.onrender.com`. Адрес должен открываться, иначе Lighthouse не соберёт отчёт. Free-инстанс Render засыпает, поэтому перед аудитом воркфлоу будит `/api/health` с ретраями. Lighthouse идёт в headless-режиме по категориям performance, accessibility, best-practices, seo, JSON-отчёт сохраняется артефактом Actions на 7 дней.
+
+**Роль агента:** агент получает промпт с путём к отчёту, ищет проблемы и **сначала проверяет открытые issue** (`gh issue list`). Задача создаётся только по новой находке; в теле — значение метрики, ожидаемое поведение и ссылка на прогон, метка — `needs-triage`. Если такая задача уже есть, дубликат не создаётся.
+
+**Параллельность и тайм-аут:** `timeout-minutes: 20`; `concurrency: audit-schedule` с `cancel-in-progress: true` — одновременно идёт один аудит.
+
+**Права:** `contents: read`, `issues: write` — хватает, чтобы прочитать код и завести задачу; код агент не меняет и PR не создаёт.
+
+**Результат ручного запуска:** отчёт сохраняется артефактом, агент заводит issue по находке; повторный запуск с теми же данными дубликатов не создаёт.
+
+**Хранение отчёта:** JSON-отчёт лежит артефактом Actions, ссылка на прогон — в issue; одной ссылки на временный артефакт недостаточно, поэтому issue содержит текстовые выводы агента.
+
+### Дополнительная задача (расширение)
+
+Если аудит показал повторное появление уже исправленной проблемы, агент связывает находку с исправлявшим PR и прошлой задачей. Отсутствие данных (приложение недоступно) отмечается отдельно — это не подтверждает, что дефект исправлен. Расширение не входит в обязательные требования проекта.
+
+### Выводы
+
+Настройка расписания заняла минимум времени: критерии из задания понятны. Главное уточнение — `APP_URL` должен указывать на работающее приложение, иначе Lighthouse не соберёт отчёт. Прав `issues: write` без `pull-requests: write` достаточно для сценария «находка → issue»: код не меняется. Автоматическое исключение дубликатов работает — повторный запуск не плодит задач. Промпт вместо встроенной логики позволил описать поиск и создание задач без переписывания воркфлоу.
+
+### Сводка конфигурации
+
+- **Файл:** `.github/workflows/audit-schedule.yml`
+- **События:** `schedule` (cron) + `workflow_dispatch`
+- **Cron:** `17 3 * * *` (06:17 по Москве / 03:17 UTC)
+- **Тайм-аут:** 20 минут
+- **Параллельность:** `audit-schedule`, `cancel-in-progress: true`
+- **Права:** `contents: read`, `issues: write`
+- **Артефакт:** `lighthouse-report-<run_id>`, 7 дней
+- **Промпт агента:** анализ `lighthouse-report.json`, проверка существующих issue, создание issue только по новой находке
 
 </details>
 
