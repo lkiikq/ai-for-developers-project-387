@@ -46,15 +46,68 @@ jobs:
     # Стандартная авторизация OpenCode: чтение репозитория +
     # OIDC-токен, который обменивается на токен GitHub App.
     # Права на запись даёт сам App, GITHUB_TOKEN в checkout не сохраняется.
+    # actions: read — история прогонов для бюджета PR;
+    # issues: write — комментарий о исчерпании бюджета (без модели).
     permissions:
       id-token: write
       contents: read
+      actions: read
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 1
           persist-credentials: false
+
+      # Предел запусков на PR: не больше трёх допущенных запросов человека
+      # к агенту (общий и построчный комментарии, плюс re-run считается как
+      # отдельная попытка). Счётчик берём из истории Actions — источник,
+      # который токен агента не переписывает; комментарий в PR только отчёт.
+      - name: Check PR run budget
+        id: budget
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number || github.event.pull_request.number }}
+          IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          MAX=3
+
+          if [ "$IS_PR" != "true" ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          TITLE=$(gh api "repos/$REPO/issues/$PR" --jq .title)
+          USED=0
+          for event in issue_comment pull_request_review_comment; do
+            sum=$(gh api --paginate --slurp "repos/$REPO/actions/runs?event=$event&per_page=100" \
+              | jq --arg t "$TITLE" '[.[].workflow_runs[] | select(.display_title == $t and .conclusion != "skipped") | .run_attempt] | add // 0')
+            USED=$((USED + sum))
+          done
+          echo "budget: used=$USED max=$MAX"
+
+          # Текущий прогон уже учтён в истории, поэтому третий запуск
+          # (used == MAX) ещё допускается, а четвёртый — нет.
+          if [ "$USED" -gt "$MAX" ]; then
+            HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="## Бюджет запусков агента исчерпан — \`limit_exhausted\`
+
+          Для PR #$PR разрешено не больше $MAX допущенных запусков агента; этот запрос — $USED-й. Модель не вызывалась.
+
+          - **Последний SHA:** \`$HEAD_SHA\`
+          - **Логи:** $RUN_URL
+          - **Статус:** нужен человек
+
+          Следующее действие выбирает человек: оставить изменение как есть, продолжить вручную или открыть новый PR — у него будет свой бюджет."
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       # Глобальный конфиг OpenCode для headless-раннера: запрос прав
       # (`permission: ask`) никто не подтверждает, и прогон зависает до
@@ -64,6 +117,7 @@ jobs:
       # сессии этот конфиг не затрагивает — в проектном opencode.json
       # permission не задан, действует безопасный `ask` по умолчанию.
       - name: Headless permissions
+        if: steps.budget.outputs.allowed == 'true'
         shell: bash
         run: |
           mkdir -p "$HOME/.config/opencode"
@@ -80,6 +134,7 @@ jobs:
       # правила (AGENTS.md) приезжают с checkout — отдельная установка
       # на раннере не нужна.
       - name: Run OpenCode
+        if: steps.budget.outputs.allowed == 'true'
         uses: anomalyco/opencode/github@latest
         env:
           # Ключ модели — только из Secrets, в репозиторий не попадает

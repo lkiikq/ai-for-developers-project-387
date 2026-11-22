@@ -1,0 +1,71 @@
+name: PR Verify
+
+# Независимая проверка работающей версии PR: браузерный сценарий запускается
+# из точного head SHA автора (а не из merge-коммита) и оставляет артефакт
+# с trace и фактическим SHA. Секрета модели здесь нет — проверка отдельная
+# от сессии реализации.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Новый push в тот же PR отменяет устаревшую проверку.
+    concurrency:
+      group: pr-verify-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Record checked SHA
+        run: |
+          {
+            echo "pr: #${{ github.event.pull_request.number }}"
+            echo "requested_head_sha: ${{ github.event.pull_request.head.sha }}"
+            echo "actual_head_sha: $(git rev-parse HEAD)"
+          } | tee verification.txt
+          cat verification.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup mise
+        uses: jdx/mise-action@v5
+        with:
+          experimental: true
+
+      - run: mise run install
+
+      - name: Install Playwright browsers
+        working-directory: client
+        run: npx playwright install --with-deps chromium
+
+      # trace включаем явно: артефакт должен содержать прохождение сценария,
+      # а не только статус джобы.
+      - name: Run browser verification
+        working-directory: client
+        run: npx playwright test --trace on
+
+      - name: Record result
+        if: always()
+        run: |
+          echo "job_status: ${{ job.status }}" >> verification.txt
+          cat verification.txt
+          cat verification.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verification artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-verify-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            verification.txt
+            client/test-results
+          if-no-files-found: warn
+          retention-days: 14
