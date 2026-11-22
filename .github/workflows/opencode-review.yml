@@ -107,8 +107,8 @@ jobs:
           set +e
           set -o pipefail
           opencode run --auto \
-            --model "${{ vars.OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free' }}" \
-            -f pr.diff "$(cat review-prompt.md)" 2> review.err | tee review.md
+            -m "${{ vars.OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free' }}" \
+            "$(cat review-prompt.md)" --file=pr.diff 2> review.err | tee review.md
           status=$?
           set -e
           echo "--- stderr ---"
