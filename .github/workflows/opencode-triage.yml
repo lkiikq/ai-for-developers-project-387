@@ -16,10 +16,20 @@ jobs:
   triage:
     if: |
       github.event.issue.user.type != 'Bot' &&
+      (
+        github.event.issue.author_association == 'OWNER' ||
+        github.event.issue.author_association == 'MEMBER' ||
+        github.event.issue.author_association == 'COLLABORATOR' ||
+        github.event.issue.author_association == 'CONTRIBUTOR'
+      ) &&
       !contains(github.event.issue.labels.*.name, 'ready-for-agent')
     runs-on: ubuntu-latest
     # Разбор не должен тратить бюджет бесконечно.
     timeout-minutes: 15
+    # Ограничение параллельных запусков: один разбор на issue.
+    concurrency:
+      group: triage-${{ github.event.issue.number }}
+      cancel-in-progress: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
