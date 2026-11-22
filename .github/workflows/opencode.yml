@@ -28,8 +28,10 @@ jobs:
         github.event.comment.author_association == 'COLLABORATOR'
       )
     runs-on: ubuntu-latest
-    # Задание с агентом не виснет бесконечно
-    timeout-minutes: 20
+    # Задание с агентом не виснет бесконечно. Запас на длинные прогоны
+    # (to-spec/to-tickets); зависание на запросе прав исключено настройкой
+    # permission в opencode.json (тикет #6).
+    timeout-minutes: 30
     # Параллельные запуски по одному issue/PR: новый прогон отменяет
     # текущий, чтобы агенты не отвечали в обсуждении одновременно.
     concurrency:
