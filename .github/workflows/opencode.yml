@@ -4,24 +4,22 @@
 name: opencode
 
 # События вызова агента:
-# - issue_comment: создано нового комментария в issue
+# - issue_comment: создан комментарий в issue или PR
 # - pull_request_review_comment: создан комментарий к строке diff в PR
-# - pull_request: новый pull request (для автореью)
 on:
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 jobs:
   opencode:
     # Фильтр до работы агента: команда в тексте + доверенный автор.
     # Комментарии ботов игнорируются — агент не отвечает на свои
-    # собственные сообщения.
+    # собственные сообщения. PR из fork пропускаются: на review-комментарии
+    # checkout берёт код PR, а форку секреты не выдаются.
     if: |
-      github.event.comment.user.type != 'Bot' && github.event.pull_request.head.repo.full_name == github.base.repo.full_name &&
+      github.event.comment.user.type != 'Bot' &&
       (
         contains(github.event.comment.body, '/oc') ||
         contains(github.event.comment.body, '/opencode')
@@ -29,8 +27,11 @@ jobs:
       (
         github.event.comment.author_association == 'OWNER' ||
         github.event.comment.author_association == 'MEMBER' ||
-        github.event.comment.author_association == 'COLLABORATOR' ||
-        github.event.pull_request.head.sha == github.event.repository.default_branch
+        github.event.comment.author_association == 'COLLABORATOR'
+      ) &&
+      (
+        github.event.pull_request == null ||
+        github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name
       )
     runs-on: ubuntu-latest
     # Задание с агентом не виснет бесконечно. Запас на длинные прогоны
