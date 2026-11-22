@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0](https://github.com/lkiikq/ai-for-developers-project-387/compare/v1.0.0...v1.1.0) (2026-11-22)
+
+
+### Features
+
+* eventTypeName в ответах GET и POST /api/bookings ([#15](https://github.com/lkiikq/ai-for-developers-project-387/issues/15)) ([97ae669](https://github.com/lkiikq/ai-for-developers-project-387/commit/97ae669c2c03ee9ed8b327a1061f0b014e74b5cf))
+* название встречи в карточке предстоящих событий ([#16](https://github.com/lkiikq/ai-for-developers-project-387/issues/16)) ([6c1e897](https://github.com/lkiikq/ai-for-developers-project-387/commit/6c1e8973d43017220af6591e47516805c8c614d7))
+* название встречи в предстоящих событиях ([#14](https://github.com/lkiikq/ai-for-developers-project-387/issues/14), [#15](https://github.com/lkiikq/ai-for-developers-project-387/issues/15), [#16](https://github.com/lkiikq/ai-for-developers-project-387/issues/16), [#17](https://github.com/lkiikq/ai-for-developers-project-387/issues/17)) ([56491d1](https://github.com/lkiikq/ai-for-developers-project-387/commit/56491d1d2b5104bc9cde7d942396eb91239de60f))
+* поле eventTypeName в контракте брони ([#14](https://github.com/lkiikq/ai-for-developers-project-387/issues/14)) ([c79d96f](https://github.com/lkiikq/ai-for-developers-project-387/commit/c79d96f30e1c3b504e495ed99d7fd2a205aedb95))
+
+
+### Bug Fixes
+
+* запускать агента только по команде в начале строки ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([d788091](https://github.com/lkiikq/ai-for-developers-project-387/commit/d788091e454b09b7ee36d7a201a42d3b279578a1))
+* один комментарий автотриажа без дубля ([#21](https://github.com/lkiikq/ai-for-developers-project-387/issues/21)) ([45b125c](https://github.com/lkiikq/ai-for-developers-project-387/commit/45b125cb71a702f01f52c36932f3f1a4ee8e67f6))
+* передать prompt до флага файла в CLI ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([6fd6cd6](https://github.com/lkiikq/ai-for-developers-project-387/commit/6fd6cd64c94e2f42e7ab5900973cecc047760e5d))
+* показывать stderr ревьюера при сбое CLI ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([990621f](https://github.com/lkiikq/ai-for-developers-project-387/commit/990621ff125a7d1c9696fb3fd67df216caf372cc))
+* права для отчёта о бюджете PR ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([00306f3](https://github.com/lkiikq/ai-for-developers-project-387/commit/00306f3c8f9c4eab0f1b404b9f73f82aa67b9504))
+* право на комментарий в PR для бюджета ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([72ed712](https://github.com/lkiikq/ai-for-developers-project-387/commit/72ed712a7fabb797b0fc20065f9431cade626988))
+* ревьюить PR агента, а не отфильтровывать как бота ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([89b3f1f](https://github.com/lkiikq/ai-for-developers-project-387/commit/89b3f1f332e3dbb2d00cc5b29c125b3b328f2955))
+* убрать несуществующий флаг --standalone у CLI ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([6bcb89a](https://github.com/lkiikq/ai-for-developers-project-387/commit/6bcb89a4a0a094e91304e9aa13f7a8abf5139a2a))
+* учитывать прошлые замечания в повторном ревью ([#25](https://github.com/lkiikq/ai-for-developers-project-387/issues/25)) ([7a6074b](https://github.com/lkiikq/ai-for-developers-project-387/commit/7a6074b0641c7e8b0d6d4484ff9dbdaf7118ce32))
+
 ## 1.0.0 (2026-11-22)
 
 
