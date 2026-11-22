@@ -87,6 +87,8 @@ test('гость записывается на свободный слот, вл
   // Владелец: вкладка «Предстоящие события» → карточка созданной брони
   await page.getByRole('link', { name: 'Предстоящие события' }).click();
   await expect(page.getByRole('heading', { name: 'Предстоящие события' })).toBeVisible();
+  // После успешной брони empty-текст больше не виден
+  await expect(page.getByText('Предстоящих событий нет.')).toHaveCount(0);
   const bookingCard = page.locator('.booking-card', { hasText: guestEmail });
   await expect(bookingCard).toBeVisible();
   await expect(bookingCard).toContainText(guestName);
