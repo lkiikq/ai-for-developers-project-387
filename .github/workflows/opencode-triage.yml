@@ -62,7 +62,6 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: ${{ vars.OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free' }}
           share: "false"
@@ -79,7 +78,8 @@ jobs:
             5. Категория (bug / enhancement) и готовность: ready-for-agent или нужен разбор.
 
             Разбор должен стать итоговым ответом — экшен сам опубликует его
-            комментарием к issue. Спеку и тикеты не создавай — их оформляет
-            человек командой /oc со скиллами to-spec и to-tickets после
-            согласования. Метки, кроме уже стоящей needs-triage, не меняй.
-            Права и токены не проверяй.
+            комментарием к issue. Не публикуй комментарий самостоятельно
+            (никаких `gh issue comment` и `gh api` для комментариев).
+            Спеку и тикеты не создавай — их оформляет человек командой /oc
+            со скиллами to-spec и to-tickets после согласования. Метки, кроме
+            уже стоящей needs-triage, не меняй. Права и токены не проверяй.
