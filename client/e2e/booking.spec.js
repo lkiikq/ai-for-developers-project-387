@@ -48,6 +48,11 @@ test('гость записывается на свободный слот, вл
   });
   expect(created.ok()).toBe(true);
 
+  // Соседний сценарий из спеки #9: пока брони нет, список предстоящих
+  // событий на чистом сервере показывает empty-текст, а не пустую страницу.
+  await page.goto('/owner/bookings');
+  await expect(page.getByText('Предстоящих событий нет.')).toBeVisible();
+
   // Гость: главная → «Записаться →» → карточка типа → «Выбрать».
   // Список грузится асинхронно — ждём видимости карточки явно; ошибки
   // загрузки не «лечим» автorerраем, они должны проваливать тест.
@@ -82,6 +87,8 @@ test('гость записывается на свободный слот, вл
   // Владелец: вкладка «Предстоящие события» → карточка созданной брони
   await page.getByRole('link', { name: 'Предстоящие события' }).click();
   await expect(page.getByRole('heading', { name: 'Предстоящие события' })).toBeVisible();
+  // После успешной брони empty-текст больше не виден
+  await expect(page.getByText('Предстоящих событий нет.')).toHaveCount(0);
   const bookingCard = page.locator('.booking-card', { hasText: guestEmail });
   await expect(bookingCard).toBeVisible();
   await expect(bookingCard).toContainText(guestName);
