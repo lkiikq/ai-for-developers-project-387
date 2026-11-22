@@ -142,7 +142,7 @@ jobs:
           # Ключ модели — только из Secrets, в репозиторий не попадает
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
-          model: opencode/mimo-v2.6-flash-free
+          model: ${{ vars.OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free' }}
           # Публикация сессий агента выключена: решение зафиксировано
           # в README.md
           share: "false"

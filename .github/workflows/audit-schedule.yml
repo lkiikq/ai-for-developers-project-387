@@ -99,7 +99,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: opencode/mimo-v2.6-flash-free
+          model: ${{ vars.OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free' }}
           share: "false"
           prompt: |
             ${{ inputs.demo_report == true && 'ВАЖНО: это УЧЕБНЫЙ отчёт с заранее подготовленной находкой. Задача по нему — учебная, не подтверждённый дефект приложения.' || 'Отчёт снят с работающего приложения.' }}
