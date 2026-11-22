@@ -1,0 +1,29 @@
+{
+  "lighthouseVersion": "12.8.2",
+  "demo": true,
+  "requestedUrl": "https://call-calendar-pmoq.onrender.com/",
+  "finalUrl": "https://call-calendar-pmoq.onrender.com/",
+  "fetchTime": "2026-11-22T00:00:00.000Z",
+  "categories": {
+    "performance": { "id": "performance", "title": "Performance", "score": 0.62 },
+    "accessibility": { "id": "accessibility", "title": "Accessibility", "score": 0.71 },
+    "best-practices": { "id": "best-practices", "title": "Best Practices", "score": 0.92 },
+    "seo": { "id": "seo", "title": "SEO", "score": 0.9 }
+  },
+  "audits": {
+    "largest-contentful-paint": {
+      "id": "largest-contentful-paint",
+      "title": "Largest Contentful Paint",
+      "description": "Largest Contentful Paint marks the time at which the largest text or image is painted.",
+      "score": 0.45,
+      "displayValue": "4.1 s"
+    },
+    "color-contrast": {
+      "id": "color-contrast",
+      "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+      "description": "Low-contrast text is difficult or impossible for many users to read.",
+      "score": 0,
+      "displayValue": ""
+    }
+  }
+}

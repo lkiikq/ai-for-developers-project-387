@@ -5,8 +5,13 @@ name: Audit Schedule
 # по тем проблемам, которых ещё нет в трекере.
 on:
   schedule:
-    - cron: "17 3 * * *" # 03:17 UTC = 06:17 по Москве
+    - cron: "17 3 * * *" # 03:17 UTC = 06:17 по Москве; чаще раза в сутки не запускаем
   workflow_dispatch:
+    inputs:
+      demo_report:
+        description: "Учебный отчёт с подготовленной находкой (демонстрация issue)"
+        type: boolean
+        default: false
 
 permissions:
   id-token: write # OIDC-токен обменивается на токен GitHub App (issue по находке)
@@ -17,6 +22,9 @@ permissions:
 # по умолчанию — прод первого проекта из README.
 env:
   APP_URL: ${{ vars.APP_URL || 'https://call-calendar-pmoq.onrender.com' }}
+  # Отчёт живёт в игнорируемом каталоге: экшен агента коммитит рабочее
+  # дерево, и иначе он открыл бы PR с артефактом аудита.
+  REPORT: .audit/lighthouse-report.json
 
 jobs:
   audit:
@@ -35,6 +43,7 @@ jobs:
 
       # Free-инстанс Render засыпает: будим приложение и ждём ответа health.
       - name: Warm up application
+        if: inputs.demo_report != true
         run: curl -sf --retry 5 --retry-delay 10 --retry-all-errors "$APP_URL/api/health" || true
 
       # В headless-режиме запрос прав никто не подтверждает — прогон зависает
@@ -54,25 +63,37 @@ jobs:
           EOF
 
       - name: Run Lighthouse audit
+        if: inputs.demo_report != true
         run: |
+          mkdir -p "$(dirname "$REPORT")"
           npx --yes lighthouse "$APP_URL" \
             --output json \
-            --output-path lighthouse-report.json \
+            --output-path "$REPORT" \
             --only-categories=performance,accessibility,best-practices,seo \
             --max-wait-for-load=60000 \
             --chrome-flags="--headless --no-sandbox"
+
+      # Учебный отчёт с заранее подготовленной находкой: нужен, чтобы
+      # показать создание issue и дедупликацию, не выдумывая дефект
+      # в работающем приложении. Задача по нему помечается как учебная.
+      - name: Use educational demo report
+        if: inputs.demo_report == true
+        run: |
+          mkdir -p "$(dirname "$REPORT")"
+          cp docs/audit/demo-lighthouse-report.json "$REPORT"
+          echo "Отчёт для демонстрации скопирован в $REPORT"
 
       - name: Upload Lighthouse report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-report-${{ github.run_id }}
-          path: lighthouse-report.json
+          path: .audit/lighthouse-report.json
           if-no-files-found: warn
           retention-days: 7
 
       - name: Run OpenCode audit analysis
-        if: hashFiles('lighthouse-report.json') != ''
+        if: hashFiles('.audit/lighthouse-report.json') != ''
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -81,7 +102,9 @@ jobs:
           model: opencode/mimo-v2.6-flash-free
           share: "false"
           prompt: |
-            Проанализируй отчёт Lighthouse `lighthouse-report.json`
+            ${{ inputs.demo_report == true && 'ВАЖНО: это УЧЕБНЫЙ отчёт с заранее подготовленной находкой. Задача по нему — учебная, не подтверждённый дефект приложения.' || 'Отчёт снят с работающего приложения.' }}
+
+            Проанализируй отчёт Lighthouse `.audit/lighthouse-report.json`
             для приложения ${{ env.APP_URL }}.
 
             1. Найди проблемы: производительность, доступность, best practices, SEO.
@@ -89,6 +112,7 @@ jobs:
             2. Перед созданием задачи проверь, нет ли уже такой:
                `gh issue list --state all --search "lighthouse:<audit-id>" --json number,title`.
                Идентификатор аудита — `audits[].id` из отчёта (например, `color-contrast`).
+               ${{ inputs.demo_report == true && 'Для учебного отчёта ищи маркер `lighthouse:demo:<audit-id>`.' || '' }}
                Ищи по всем задачам, открытым и закрытым: повтор уже исправленной
                проблемы тоже не должен заводить вторую.
             3. По каждой новой находке создай отдельный issue:
@@ -96,9 +120,16 @@ jobs:
                В теле: что найдено, значение метрики или score, ожидаемое поведение
                и ссылка на прогон
                ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
-               Последней строкой тела добавь скрытый маркер `<!-- lighthouse:<audit-id> -->` —
+               Последней строкой тела добавь скрытый маркер
+               `<!-- lighthouse:<audit-id> -->` (для учебного отчёта — `lighthouse:demo:<audit-id>`);
                по нему следующий запуск найдёт задачу и не создаст дубликат.
-            4. Если новых находок нет, ничего не создавай и напиши об этом в ответе.
+               ${{ inputs.demo_report == true && 'В заголовке начни с `[учебный]`, добавь метку `educational` и прямо напиши, что это учебная задача, а не подтверждённый дефект.' || '' }}
+            4. Если находка повторяет уже закрытую задачу с исправляющим PR,
+               сошлись в новой задаче на прежнюю задачу и PR — это повторное
+               появление исправленной проблемы.
+            5. Если отчёт пуст или данных не хватает (приложение недоступно),
+               не делай вывод, что дефект исправлен: отметь отсутствие данных.
+            6. Если новых находок нет, ничего не создавай и напиши об этом в ответе.
 
             Файлы репозитория не меняй и не коммить: отчёт уже сохранён артефактом.
             Права и токены не проверяй — итог просто напиши в ответе.
