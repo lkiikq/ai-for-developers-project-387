@@ -47,14 +47,14 @@ jobs:
     # OIDC-токен, который обменивается на токен GitHub App.
     # Права на запись даёт сам App, GITHUB_TOKEN в checkout не сохраняется.
     # actions: read — история прогонов для бюджета PR;
-    # issues: write — комментарий о исчерпании бюджета (без модели);
-    # pull-requests: read — head SHA PR для отчёта.
+    # issues: write + pull-requests: write — комментарий об исчерпании
+    # бюджета в PR (без модели); pull-requests также даёт head SHA.
     permissions:
       id-token: write
       contents: read
       actions: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
