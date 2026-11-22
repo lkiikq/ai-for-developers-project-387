@@ -1,11 +1,21 @@
 name: Auto Review
 
-# Автоматическое ревью PR: открытие или обновление PR запускает агента.
-# PR из fork и от ботов пропускаются — они не должны получать секреты
-# и тратить бюджет модели. Ревьюер только комментирует, код меняет автор PR.
+# Автоматическое ревью PR: открытие или обновление PR запускает независимого
+# ревьюера в отдельном запуске. Используется OpenCode CLI, а не GitHub-экшен:
+# экшен проверяет права отправителя события, и для PR, созданного приложением,
+# эта проверка возвращает permission: none и останавливает ревью (шаг 4).
+# Доверенный автор и ветку проверяет сам воркфлоу.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read # checkout и diff
+  issues: write # gh pr comment (комментарии к PR идут через issues API)
+  pull-requests: write # построчные замечания через pulls/{n}/comments
+  actions: read # контекст прогонов CI
+  checks: read
+  statuses: read
 
 jobs:
   review:
@@ -18,12 +28,6 @@ jobs:
         github.event.pull_request.author_association == 'COLLABORATOR' ||
         github.event.pull_request.user.login == 'opencode-agent[bot]'
       )
-    # issues: read — прочитать предыдущие замечания, чтобы не повторять их.
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write # gh: ревью и комментарии к строкам diff
-      issues: read
     runs-on: ubuntu-latest
     # Ограничение бюджета: одно ревью — не дольше 25 минут.
     timeout-minutes: 25
@@ -38,9 +42,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # В headless-режиме запрос прав никто не подтверждает — прогон зависает
-      # до тайм-аута (тикет #6). Внешние пути разрешаем целиком (раннер
-      # одноразовый), зацикливание блокируем.
+      - name: Prepare diff
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          git diff "origin/${{ github.base_ref }}...HEAD" > pr.diff
+          echo "diff lines: $(wc -l < pr.diff)"
+          echo "head: $(git rev-parse HEAD)"
+
+      # В headless-режиме запрос прав никто не подтверждает — прогон зависает.
+      # Внешние пути разрешаем целиком (раннер одноразовый), зацикливание
+      # блокируем. Права инструментов для CLI выдаёт флаг --auto.
       - name: Headless permissions
         shell: bash
         run: |
@@ -54,42 +65,60 @@ jobs:
           }
           EOF
 
+      - name: Install OpenCode CLI
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Write review prompt
+        run: |
+          cat > review-prompt.md <<'EOF'
+          Ты — независимый ревьюер pull request. Код не меняй и не пушь.
+
+          Контекст:
+          - PR: #${{ github.event.pull_request.number }} в ${{ github.repository }}
+          - Ветка: ${{ github.event.pull_request.head.ref }}, head SHA: ${{ github.event.pull_request.head.sha }}
+          - Diff во вложении `pr.diff`; критерии — в `REVIEW.md`.
+          - Спецификация и согласование: ссылки в теле PR (можно прочитать `gh pr view ${{ github.event.pull_request.number }} --json body`).
+          - Результаты CI: `gh pr checks ${{ github.event.pull_request.number }}`.
+
+          Что проверить:
+          1. Сверь изменения со спецификацией, согласованным объёмом и критериями REVIEW.md.
+          2. Тесты: покрыты ли основной, негативный и соседний сценарии.
+          3. Контрактная цепочка contract/main.tsp → openapi.yaml → SDK; нет ручных правок генерируемых файлов.
+          4. Права и секреты в изменениях воркфлоу.
+
+          Оформление замечаний: файл и строка, условие ошибки, последствие. Форматирование
+          и стиль не дублируй — их ловит линтер. Если подтверждённых дефектов нет, скажи прямо.
+          Учти уже оставленные в PR замечания и не повторяй разобранные без новых оснований.
+
+          Построчные замечания оставь через:
+          `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments -f body="..." -f path="FILE" -f commit_id="${{ github.event.pull_request.head.sha }}" -F line=LINE -f side=RIGHT`
+          Если вызов не удался — не повторяй больше одного раза, перечисли замечание в ответе.
+
+          Верни в stdout только итоговый текст ревью — он будет опубликован комментарием к PR.
+          EOF
+
       - name: Run OpenCode review
-        uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          model: ${{ vars.OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free' }}
-          share: "false"
-          prompt: |
-            Проведи ревью pull request #${{ github.event.pull_request.number }}
-            (ветка `${{ github.event.pull_request.head.ref }}`) по скиллу code-review.
+        run: |
+          set -o pipefail
+          opencode run --standalone --auto \
+            --model "${{ vars.OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free' }}" \
+            -f pr.diff "$(cat review-prompt.md)" 2> review.err | tee review.md
+          status=$?
+          cat review.err >&2
+          exit $status
 
-            Смотри только diff `git diff origin/main...HEAD` и затронутые файлы.
-            Тесты не запускай, собственные права и токены окружения не проверяй,
-            пробных комментариев не создавай.
-
-            1. Прочитай REVIEW.md и сверь изменения с его критериями и с задачей,
-               если она относится к правкам (спецификация и согласование — по ссылкам в PR).
-            2. Проверь тесты: покрыт ли основной сценарий, негативный и соседний.
-            3. Проверь контрактную цепочку contract/main.tsp → openapi.yaml → SDK
-               и отсутствие ручных правок сгенерированных файлов.
-            4. Проверь права и секреты в изменениях воркфлоу.
-
-            Замечание оформляй по формату REVIEW.md: файл и строка, условие
-            ошибки, последствие. Форматирование и стиль не дублируй — их ловит
-            линтер. Если подтверждённых дефектов нет, скажи прямо.
-
-            Перед ревью прочитай уже оставленные замечания в PR
-            (`gh pr view ${{ github.event.pull_request.number }} --comments` и комментарии
-            к строкам diff) и не повторяй разобранные без новых оснований; проверь
-            новые правки и затронутое поведение.
-
-            Построчные замечания оставь одной командой на замечание (FILE и LINE —
-            из diff, LINE должна быть добавленной строкой):
-            `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments -f body="..." -f path="FILE" -f commit_id="${{ github.event.pull_request.head.sha }}" -F line=LINE -f side=RIGHT`
-
-            Если вызов вернул ошибку — не повторяй больше одного раза, перечисли
-            замечание в ответе. Код не меняй и не пушь. Итог напиши в ответе:
-            экшен сам опубликует его комментарием к PR. Если дефектов нет, так и напиши.
+      - name: Post review comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -s review.md ]; then
+            echo "::error::Ревьюер вернул пустой ответ"
+            exit 1
+          fi
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" --body-file review.md
