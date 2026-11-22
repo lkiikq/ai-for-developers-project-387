@@ -1,0 +1,31 @@
+# Единые проверки проекта: та же команда, что и локально (`mise run check`).
+name: check
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Ставит mise и инструменты из mise.toml (версии зафиксированы там)
+      - uses: jdx/mise-action@v5
+        with:
+          experimental: true
+
+      - run: mise run install
+
+      # Браузеры для браузерного теста (тикет #12): chromium + системные
+      # зависимости. Ставится до mise run check (в нём test:browser).
+      - name: Install Playwright browsers
+        working-directory: client
+        run: npx playwright install --with-deps chromium
+
+      # check из корня: первым шагом идёт генерация из чистого состояния
+      # (checkout даёт чистую рабочую копию), затем линтер, типы, тесты,
+      # сборка и сверка генерируемых путей — состав см. mise.toml (тикет #9)
+      - run: mise run check

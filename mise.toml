@@ -1,0 +1,173 @@
+# Окружение разработки: версии инструментов, задачи, хуки и фоновые
+# dev-серверы. См. https://mise.jdx.dev/
+[settings]
+# daemons — экспериментальная фича, требует флага
+experimental = true
+
+# Версии зафиксированы. node совпадает с мажором базового образа
+# Dockerfile (node:22-alpine).
+[tools]
+node = "22.23.4"
+hk = "2.11.1"
+pitchfork = "2.33.1"
+# GitHub CLI — трекер задач проекта (см. docs/agents/issue-tracker.md)
+gh = "2.103.3"
+
+# После `mise install` автоматически ставятся зависимости всех пакетов
+[hooks]
+postinstall = "mise run install"
+
+# Фоновые dev-серверы (pitchfork). Запуск: mise daemons start,
+# состояние: mise daemons ls, остановка: mise daemons stop.
+# На Windows команды выполняются через cmd /C (без exec).
+[daemons.server]
+run = "npm --prefix server run dev"
+ready_port = 3000
+
+[daemons.client]
+run = "npm --prefix client run dev"
+ready_port = 5173
+
+[daemon_groups]
+default = ["server", "client"]
+
+# npm 10 (из node 22) некорректно обрабатывает `npm install --prefix`
+# из каталога без package.json, поэтому установка идёт из каталога пакета
+[tasks."install:contract"]
+description = "Зависимости контракта"
+dir = "contract"
+run = "npm install"
+hide = true
+
+[tasks."install:server"]
+description = "Зависимости бэкенда"
+dir = "server"
+run = "npm install"
+hide = true
+
+[tasks."install:client"]
+description = "Зависимости фронтенда"
+dir = "client"
+run = "npm install"
+hide = true
+
+[tasks.install]
+description = "Установить зависимости всех пакетов"
+run = [
+  { task = "install:contract" },
+  { task = "install:server" },
+  { task = "install:client" },
+]
+
+[tasks.dev]
+description = "Запустить бэкенд (:3000) и фронтенд (:5173) фоновыми daemons"
+run = "mise daemons start"
+
+# Единая генерация артефактов контракта в один вызов: TypeSpec →
+# contract/openapi.yaml → клиентский SDK. Генератора артефактов для сервера
+# (Express) нет — бэкенд реализуется по openapi.yaml вручную (см. AGENTS.md).
+[tasks.generate]
+description = "Вся генерация: TypeSpec → openapi.yaml → SDK фронтенда"
+run = [
+  "npm --prefix contract run compile",
+  "npm --prefix client run generate:api",
+]
+
+[tasks.lint]
+description = "ESLint: сервер и фронтенд"
+run = [
+  "npm --prefix server run lint",
+  "npm --prefix client run lint",
+]
+
+# TypeScript-часть клиента: сгенерированный TS-SDK и openapi-ts-конфиг
+# (tsc --noEmit с client/tsconfig.json). Основной код — JS, он типами не проверяется.
+[tasks.typecheck]
+description = "Проверка типов фронтенда, включая сгенерированный SDK"
+run = "npm --prefix client run typecheck"
+
+[tasks."test:api"]
+description = "API-тесты бэкенда (Jest + Supertest)"
+run = "npm --prefix server test"
+
+[tasks."test:client"]
+description = "Фронтенд-тесты (Vitest + Testing Library)"
+run = "npm --prefix client test"
+
+# Браузерный тест сквозного сценария (тикет #12): Playwright сам поднимает
+# изолированную пару серверов (бэкенд :3100, фронтенд dev :5273 — см.
+# client/playwright.config.js), без моков API и без записи тестовых данных
+# в хранилище dev-серверов (:3000/:5173).
+# Ensure-шаг ставит chromium идемпотентно (при установленном — быстрый
+# no-op с exit 0), поэтому `mise run check` работает на свежем клоне одной
+# командой; в CI браузер дополнительно ставится с системными зависимостями
+# (--with-deps) до запуска check.
+[tasks."test:browser:install"]
+description = "Chromium для Playwright (идемпотентно)"
+dir = "client"
+run = "npx playwright install chromium"
+hide = true
+
+[tasks."test:browser"]
+description = "Браузерный e2e-тест сквозного сценария (Playwright)"
+run = [
+  { task = "test:browser:install" },
+  "npm --prefix client run test:browser",
+]
+
+# Тест цепочки генерации: generate создаёт оба артефакта с нуля,
+# verify:generated ловит новый файл в генерируемых путях (см. tests/).
+[tasks."test:generated"]
+description = "Тест цепочки генерации контракта"
+run = "node --test tests/generated.test.mjs"
+
+[tasks.test]
+description = "Тесты: бэкенд, фронтенд, цепочка генерации"
+run = [
+  { task = "test:api" },
+  { task = "test:client" },
+  { task = "test:generated" },
+]
+
+[tasks.build]
+description = "Сборка фронтенда (vite build)"
+run = "npm --prefix client run build"
+
+# git-сверка закоммиченных генерируемых путей с текущим состоянием генерации.
+# git add -A перед diff обязателен: обычный git diff не видит untracked-файлы,
+# а новые файлы в генерируемых путях — это расхождение с контрактом. Побочный
+# эффект зелёного прогона полезен: индекс по этим путям обновляется, и
+# git status перестаёт показывать шум stat-данных после регенерации.
+[tasks."verify:generated"]
+description = "Генерируемые пути в git совпадают с текущей генерацией"
+run = [
+  "git add -A -- contract/openapi.yaml client/src/api/generated",
+  "git diff --cached --exit-code -- contract/openapi.yaml client/src/api/generated",
+]
+
+# Полная проверка генерации в один вызов: свежая генерация + сверка с git.
+[tasks."check:generated"]
+description = "Сгенерированные файлы соответствуют контракту (contract-first)"
+run = [
+  { task = "generate" },
+  { task = "verify:generated" },
+]
+
+# Одна команда для всех проверок — локально и в GitHub Actions
+[tasks.check]
+description = "Все проверки: генерация, линтеры, типы, тесты, сборка, контракт"
+run = [
+  # Генерация из чистого состояния — до сборки и тестов: CI и локальный
+  # запуск собирают и тестируют против свежего контракта (тикет #9).
+  "mise run generate",
+  "mise run lint",
+  "mise run typecheck",
+  "mise run test:api",
+  "mise run test:client",
+  "mise run test:generated",
+  "mise run test:browser",
+  "mise run build",
+  # Проверка генерации — последней: свежие артефакты должны совпадать с git
+  # (ловит контракт без регенерации и ручные правки сгенерированного в коммитах).
+  "mise run verify:generated",
+]
