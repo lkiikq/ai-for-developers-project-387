@@ -7,11 +7,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-permissions:
-  id-token: write # OIDC-токен обменивается на токен GitHub App (ревью, комментарии)
-  contents: read
-  pull-requests: write # gh: ревью и комментарии к строкам diff
-
 jobs:
   review:
     if: |
@@ -23,6 +18,12 @@ jobs:
         github.event.pull_request.author_association == 'COLLABORATOR' ||
         github.event.pull_request.user.login == 'opencode-agent[bot]'
       )
+    # issues: read — прочитать предыдущие замечания, чтобы не повторять их.
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write # gh: ревью и комментарии к строкам diff
+      issues: read
     runs-on: ubuntu-latest
     # Ограничение бюджета: одно ревью — не дольше 25 минут.
     timeout-minutes: 25
@@ -79,6 +80,11 @@ jobs:
             Замечание оформляй по формату REVIEW.md: файл и строка, условие
             ошибки, последствие. Форматирование и стиль не дублируй — их ловит
             линтер. Если подтверждённых дефектов нет, скажи прямо.
+
+            Перед ревью прочитай уже оставленные замечания в PR
+            (`gh pr view ${{ github.event.pull_request.number }} --comments` и комментарии
+            к строкам diff) и не повторяй разобранные без новых оснований; проверь
+            новые правки и затронутое поведение.
 
             Построчные замечания оставь одной командой на замечание (FILE и LINE —
             из diff, LINE должна быть добавленной строкой):
