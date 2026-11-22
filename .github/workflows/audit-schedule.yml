@@ -1,0 +1,80 @@
+name: Audit Schedule
+
+# Расписание и ручной запуск
+# По умолчанию время в UTC, таймзона Europe/Moscow (Москва, UTC+3)
+# 17 3 * * * — ежедневный запуск в 06:17 по Москве (3:17 UTC)
+# workflow_dispatch позволяет проверить процесс вручную
+on:
+  schedule:
+    - cron: "17 3 * * *"
+    # timezone: Europe/Moscow  # можно указать явную таймзону
+  workflow_dispatch:
+
+# Права: чтение контента, issues для создания задачи
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    # Ограничение параллельных запусков: только один задач одновременно
+    concurrency:
+      group: audit-schedule-${{ github.schedule_id || github.workflow_run.id }}
+      cancel-in-progress: true
+    # Тайм-аут 20 минут на весь прогон
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd client
+          npm install
+
+      - name: Run Lighthouse audit
+        # Запуск Lighthouse в headless-режиме
+        # Результат сохраняется как артефакт
+        run: |
+          cd client
+          # Устанавливаем Lighthouse globally или через npx
+          npx --yes lighthouse http://${APP_URL:-localhost}:3000 --output json --output-path lighthouse-report.json --preset lighthouse:ci --chrome-flags="--headless --no-sandbox" || true
+
+      - name: Upload Lighthouse report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ github.schedule_id || github.workflow_run.id }}
+          path: client/lighthouse-report.json
+          retention-days: 7
+
+      - name: Run OpenCode agent for audit analysis
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/mimo-v2.6-flash-free
+          share: "false"
+          # Агент анализирует отчёт Lighthouse и ищет проблемы:
+          # - медленная загрузка страницы
+          # - ресурсы без кэша
+          # - доступность
+          # - SEO проблемы
+          # и создает issue только по новой находке
+          # Инструкция передаётся в prompt
+          with: |
+            /oc audit-lighthouse --report client/lighthouse-report.json --check-existing-tasks
+
+      - name: Enforce timeout and summarize
+        if: always()
+        run: |
+          echo "Audit schedule completed"
+          echo "Report artifact retained for 7 days"
