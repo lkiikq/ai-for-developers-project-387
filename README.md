@@ -282,7 +282,7 @@ cd client && npm run dev
 Тот же агент, тот же секрет `OPENCODE_API_KEY` и те же настройки из `docs/agents/`:
 
 - **Автотриаж** (`.github/workflows/opencode-triage.yml`) — событие `issues: [opened]`. Агент разбирает обращение и отвечает комментарием по шагам из `docs/agents/`, метка `needs-triage` ставится автоматически. Обращения от ботов и issue с `ready-for-agent` пропускаются. Событие не команда, поэтому промпт задан во входе `prompt`. Тайм-аут 15 минут, параллельные разборы одного issue отменяются.
-- **Авторевью** (`.github/workflows/opencode-review.yml`) — событие `pull_request: [opened, synchronize, reopened]`. Агент ревьюит изменения по скиллу `code-review` и оставляет замечания в обсуждении PR и на строках diff; код он не меняет. Права — `contents: read`, `pull-requests: write` (комментарии к строкам diff), `issues: write` и `id-token: write`. PR из fork и PR от ботов пропускаются. Тайм-аут 15 минут, новый коммит в PR отменяет устаревшее ревью.
+- **Авторевью** (`.github/workflows/opencode-review.yml`) — событие `pull_request: [opened, synchronize, reopened]`. Агент ревьюит изменения по скиллу `code-review` и оставляет замечания в обсуждении PR и на строках diff; код он не меняет. Права — `contents: read`, `pull-requests: write` (комментарии к строкам diff), `issues: write` и `id-token: write`. PR из fork и PR от ботов пропускаются. Тайм-аут 25 минут, новый коммит в PR отменяет устаревшее ревью.
 
 ## Сценарии использования
 
