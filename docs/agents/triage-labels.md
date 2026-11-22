@@ -13,3 +13,11 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
+
+## How auto-triage uses these labels
+
+The auto-triage workflow (`.github/workflows/opencode-triage.yml`) reacts to a newly opened issue:
+
+- applies `needs-triage` and posts a preliminary breakdown as a comment — the issue is captured but not yet specified;
+- skips issues that already carry `ready-for-agent`: their spec and tickets are published, so they go straight to implementation;
+- does not apply `needs-info` — that label is set by a human (or by the agent doing the breakdown) when the report lacks the details needed to proceed.
