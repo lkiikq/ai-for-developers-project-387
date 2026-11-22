@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import {
@@ -28,6 +28,7 @@ const bookings = [
   {
     id: 'b-2',
     eventTypeId: 'type-1',
+    eventTypeName: 'Созвон на 30 минут',
     date: '2026-04-02',
     startTime: '11:00',
     endTime: '11:30',
@@ -38,6 +39,7 @@ const bookings = [
   {
     id: 'b-1',
     eventTypeId: 'type-1',
+    eventTypeName: 'Созвон на 30 минут',
     date: '2026-04-01',
     startTime: '10:00',
     endTime: '10:30',
@@ -46,6 +48,19 @@ const bookings = [
     createdAt: '2026-03-19T14:05:00.000Z',
   },
 ];
+
+const bookingWithMissingType = {
+  ...bookings[1],
+  id: 'b-missing',
+  eventTypeId: 'type-deleted',
+  eventTypeName: null,
+  date: '2026-04-03',
+  startTime: '12:00',
+  endTime: '12:30',
+  guestName: 'Олег Орлов',
+  guestEmail: 'oleg@example.com',
+  createdAt: '2026-03-21T10:00:00.000Z',
+};
 
 beforeEach(() => {
   vi.mocked(listBookings).mockReset();
@@ -66,6 +81,32 @@ describe('Предстоящие события (/owner/bookings)', () => {
     expect(screen.getByText('Создано: 20.03.2026, 09:15')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Типы встреч' }))
       .toHaveAttribute('href', '/owner/event-types');
+  });
+
+  it('рендерит название встречи между email и «Слот» (основной сценарий)', async () => {
+    vi.mocked(listBookings).mockResolvedValue({ data: bookings });
+    renderPage();
+
+    const card = (await screen.findByText('ivan@example.com')).closest('li');
+    const text = card.textContent;
+    expect(within(card).getByText('Созвон на 30 минут')).toBeInTheDocument();
+    expect(text.indexOf('ivan@example.com')).toBeLessThan(
+      text.indexOf('Созвон на 30 минут'),
+    );
+    expect(text.indexOf('Созвон на 30 минут')).toBeLessThan(
+      text.indexOf('Слот: 2026-04-02-11:00'),
+    );
+  });
+
+  it('при eventTypeName: null не рендерит строку названия, остальные строки прежние (негативный сценарий)', async () => {
+    vi.mocked(listBookings).mockResolvedValue({ data: [bookingWithMissingType] });
+    renderPage();
+
+    const card = (await screen.findByText('oleg@example.com')).closest('li');
+    expect(card.querySelectorAll('p')).toHaveLength(4);
+    expect(within(card).getByText('Олег Орлов')).toBeInTheDocument();
+    expect(within(card).getByText('Слот: 2026-04-03-12:00')).toBeInTheDocument();
+    expect(within(card).getByText('Создано: 21.03.2026, 10:00')).toBeInTheDocument();
   });
 
   it('показывает empty-текст «Предстоящих событий нет.»', async () => {

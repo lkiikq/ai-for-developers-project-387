@@ -85,6 +85,8 @@ test('гость записывается на свободный слот, вл
   const bookingCard = page.locator('.booking-card', { hasText: guestEmail });
   await expect(bookingCard).toBeVisible();
   await expect(bookingCard).toContainText(guestName);
+  // Название встречи пришло в ответе брони (eventTypeName) и отрисовано в карточке
+  await expect(bookingCard).toContainText(title);
   await expect(bookingCard).toContainText(`Слот: ${date}-${startTime}`);
   // Живая цепочка контракта: сервер вернул createdAt (POST → GET → карточка)
   await expect(bookingCard).toContainText(/Создано: \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);

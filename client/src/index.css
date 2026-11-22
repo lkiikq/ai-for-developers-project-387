@@ -253,6 +253,10 @@ h2 {
   color: #7b8794;
 }
 
+.booking-event-type {
+  margin: 0.125rem 0;
+}
+
 /* Кнопки-ссылки и действия */
 .button {
   display: inline-block;

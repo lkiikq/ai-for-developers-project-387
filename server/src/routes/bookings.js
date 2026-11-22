@@ -18,6 +18,17 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // POST /api/bookings — создать бронирование (гость)
 const router = Router();
 
+const findEventType = (eventTypeId) =>
+  store.eventTypes.find((item) => item.id === eventTypeId);
+
+// Проекция брони для ответа: название встречи берётся lookup'ом eventTypeId
+// по in-memory хранилищу. Хранилище по-прежнему хранит только eventTypeId;
+// если тип не найден (рассинхрон/удалён), поле — null, ответ не падает.
+const withEventTypeName = (booking) => ({
+  ...booking,
+  eventTypeName: findEventType(booking.eventTypeId)?.title ?? null,
+});
+
 // GET /api/bookings — предстоящие по дате: все брони с сегодняшней даты
 // включительно (Asia/Almaty), сортировка по дате и времени, ближайшие выше.
 router.get('/', (req, res) => {
@@ -31,7 +42,7 @@ router.get('/', (req, res) => {
       if (keyA > keyB) return 1;
       return 0;
     });
-  res.json(upcoming);
+  res.json(upcoming.map(withEventTypeName));
 });
 
 // POST /api/bookings — создать бронирование. Валидация, проверка
@@ -71,7 +82,7 @@ router.post('/', (req, res) => {
   }
 
   const eventTypeId = body.eventTypeId;
-  const eventType = store.eventTypes.find((item) => item.id === eventTypeId);
+  const eventType = findEventType(eventTypeId);
   if (!eventType) {
     return res.status(404).json({ error: 'Тип встречи не найден.' });
   }
@@ -110,7 +121,7 @@ router.post('/', (req, res) => {
     createdAt: new Date().toISOString(),
   };
   store.bookings.push(booking);
-  return res.status(201).json(booking);
+  return res.status(201).json(withEventTypeName(booking));
 });
 
 export default router;
