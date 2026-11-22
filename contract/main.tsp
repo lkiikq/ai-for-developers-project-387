@@ -60,6 +60,12 @@ model Booking {
   /** Идентификатор типа встречи */
   eventTypeId: string;
 
+  /**
+   * Название встречи — `title` типа, на который ссылается `eventTypeId`.
+   * Если тип не найден в хранилище — `null` (ответ не падает).
+   */
+  eventTypeName: string | null;
+
   /** Дата, YYYY-MM-DD (Asia/Almaty) */
   date: string;
 
