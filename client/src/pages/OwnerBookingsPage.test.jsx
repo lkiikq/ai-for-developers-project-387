@@ -50,6 +50,7 @@ const bookings = [
 ];
 
 const bookingWithMissingType = {
+  ...bookings[1],
   id: 'b-missing',
   eventTypeId: 'type-deleted',
   eventTypeName: null,
