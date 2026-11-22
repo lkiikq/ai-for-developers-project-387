@@ -29,8 +29,8 @@ jobs:
       )
     runs-on: ubuntu-latest
     # Задание с агентом не виснет бесконечно. Запас на длинные прогоны
-    # (to-spec/to-tickets); зависание на запросе прав исключено настройкой
-    # permission в opencode.json (тикет #6).
+    # (to-spec/to-tickets); зависания на запросе прав исключены шагом
+    # «Headless permissions» ниже (тикет #6).
     timeout-minutes: 30
     # Параллельные запуски по одному issue/PR: новый прогон отменяет
     # текущий, чтобы агенты не отвечали в обсуждении одновременно.
@@ -49,6 +49,26 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+
+      # Глобальный конфиг OpenCode для headless-раннера: запрос прав
+      # (`permission: ask`) никто не подтверждает, и прогон зависает до
+      # тайм-аута (тикет #6). Внешние пути (~/.config/gh, ~/.config/configstore
+      # от npx и т.п.) разрешаем целиком — раннер одноразовый; зацикливание
+      # блокируется (doom_loop: deny), а не висит на запросе. Локальные
+      # сессии этот конфиг не затрагивает — в проектном opencode.json
+      # permission не задан, действует безопасный `ask` по умолчанию.
+      - name: Headless permissions
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/opencode"
+          cat > "$HOME/.config/opencode/opencode.json" <<'EOF'
+          {
+            "permission": {
+              "external_directory": { "*": "allow" },
+              "doom_loop": "deny"
+            }
+          }
+          EOF
 
       # Скиллы (.agents/skills/), настройки трекера (docs/agents/) и
       # правила (AGENTS.md) приезжают с checkout — отдельная установка
