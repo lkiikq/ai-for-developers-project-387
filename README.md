@@ -255,8 +255,16 @@ cd client && npm run dev
 
 Раннер GitHub Actions начинается с чистого окружения, но проектные файлы приезжают с `checkout`:
 
-- **Скиллы первого проекта** лежат в репозитории: `.agents/skills/` (`to-spec`, `to-tickets`, `implement-spec` и др., закреплены `skills-lock.json`) — на свежем раннере доступны сразу;
-- **настройки трекера** — `docs/agents/`, **правила** — `AGENTS.md`.
+- **Скиллы** лежат в репозитории: `.agents/skills/` (27 штук — `to-spec`, `to-tickets`, `implement-spec`, `triage`, `code-review`, `wayfinder` и др., закреплены `skills-lock.json`) — на свежем раннере доступны сразу;
+- **настройки агента** — `docs/agents/`, **правила** — `AGENTS.md`.
+
+Что агент берёт из `docs/agents/`:
+
+- **Трекер задач** — GitHub Issues **этого** репозитория (`lkiikq/ai-for-developers-project-387`), операции через `gh` CLI; спека и тикеты первого проекта — в `lkiikq/ai-for-developers-project-386`, ссылки на них только абсолютные (`docs/agents/issue-tracker.md`);
+- **triage-метки** — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix` (`docs/agents/triage-labels.md`);
+- **доменные документы** — `GLOSSARY.md` + `docs/adr/` (`docs/agents/domain.md`).
+
+**Команда проверок** — `mise run check` (линтеры, типы, тесты API/клиента/браузера, сборка, сверка сгенерированных файлов с контрактом); точечно — `mise run lint` / `mise run test` / `mise run build`. То же в `.github/workflows/check.yml` и в `AGENTS.md`.
 
 В OpenCode название скилла передаётся текстом команды: `/oc запусти скилл to-spec по обсуждению этого issue`.
 
